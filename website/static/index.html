@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AQI Double Jeopardy Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+            color: #334155;
+            min-height: 100vh;
+        }
+
+        /* ===== NAVIGATION ===== */
+        .nav-bar {
+            background: #1e293b;
+            border-radius: 12px;
+            margin: 16px 24px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 2px;
+            padding: 4px;
+            position: sticky;
+            top: 8px;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: #cbd5e1;
+            padding: 12px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .nav-btn:hover { background: #334155; color: white; }
+        .nav-btn.active { background: #3b82f6; color: white; font-weight: 600; }
+
+        /* ===== LAYOUT ===== */
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px 60px; }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* ===== TYPOGRAPHY ===== */
+        h1 { color: #0f172a; font-weight: 700; font-size: 2rem; margin-bottom: 4px; }
+        h2 { color: #1e293b; font-weight: 600; font-size: 1.4rem; margin: 2rem 0 1rem; }
+        h3 { color: #334155; font-weight: 600; font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
+        p, li { color: #475569; font-size: 0.95rem; line-height: 1.65; }
+
+        .page-subtitle { color: #64748b; font-size: 1rem; margin-bottom: 16px; }
+
+        /* ===== CARDS ===== */
+        .metrics-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 24px 0; }
+
+        .metric-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 20px 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .metric-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .metric-label { color: #64748b; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+        .metric-value { color: #0f172a; font-size: 1.75rem; font-weight: 700; margin: 6px 0; }
+        .metric-sub { color: #94a3b8; font-size: 0.8rem; }
+
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 28px 32px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            margin: 20px 0;
+        }
+        .info-card h4 { color: #1e293b; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; font-size: 1rem; }
+        .info-card ul { padding-left: 20px; }
+        .info-card li { margin-bottom: 8px; }
+
+        .callout {
+            border-radius: 0 16px 16px 0;
+            padding: 24px 28px;
+            margin: 20px 0;
+        }
+        .callout-blue { background: linear-gradient(135deg, #eff6ff, #f0fdf4); border-left: 4px solid #3b82f6; }
+        .callout-blue strong { color: #1e40af; }
+        .callout-orange { background: linear-gradient(135deg, #fffbeb, #fef3c7); border-left: 4px solid #f59e0b; }
+        .callout-orange strong { color: #c2410c; }
+        .callout-red { background: linear-gradient(135deg, #fef2f2, #fecaca); border-left: 4px solid #dc2626; }
+        .callout-red strong { color: #b91c1c; }
+        .callout-purple { background: linear-gradient(135deg, #faf5ff, #e9d5ff); border-left: 4px solid #8b5cf6; }
+        .callout-purple strong { color: #7c3aed; }
+        .callout-teal { background: linear-gradient(135deg, #f0fdfa, #ccfbf1); border-left: 4px solid #14b8a6; }
+        .callout-teal strong { color: #0f766e; }
+
+        /* ===== CHART CONTAINERS ===== */
+        .chart-container {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            margin: 16px 0;
+        }
+
+        .chart-row { display: grid; grid-template-columns: 1fr 1.5fr; gap: 16px; }
+        @media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
+
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+        /* ===== DIVIDER ===== */
+        .divider { height: 1px; background: linear-gradient(90deg, transparent, #e2e8f0 20%, #e2e8f0 80%, transparent); margin: 32px 0; }
+
+        /* ===== TABLE ===== */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 16px 0; }
+        .data-table th { background: #f8fafc; color: #475569; font-weight: 600; text-align: left; padding: 12px 16px; border-bottom: 2px solid #e2e8f0; }
+        .data-table td { padding: 10px 16px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        .data-table tr:hover td { background: #f8fafc; }
+        .table-wrapper { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
+
+        /* ===== RISK BADGES ===== */
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .badge-dj { background: #fef2f2; color: #dc2626; }
+        .badge-chronic { background: #fefce8; color: #ca8a04; }
+        .badge-acute { background: #fff7ed; color: #ea580c; }
+        .badge-low { background: #f0fdf4; color: #16a34a; }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            text-align: center;
+            padding: 32px 24px;
+            color: #64748b;
+            font-size: 0.85rem;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 48px;
+            background: white;
+            border-radius: 16px 16px 0 0;
+        }
+        .footer strong { color: #475569; }
+
+        /* ===== LOADING ===== */
+        .loading { text-align: center; padding: 60px; color: #94a3b8; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+
+<!-- NAVIGATION -->
+<nav class="nav-bar" id="navbar">
+    <button class="nav-btn active" onclick="showPage('overview')">🌍 Overview</button>
+    <button class="nav-btn" onclick="showPage('chronic')">📊 Chronic Pollution</button>
+    <button class="nav-btn" onclick="showPage('spikes')">⚡ Extreme Spikes</button>
+    <button class="nav-btn" onclick="showPage('dj')">🎯 Double Jeopardy</button>
+    <button class="nav-btn" onclick="showPage('severity')">📈 Severity Score</button>
+    <button class="nav-btn" onclick="showPage('download')">📥 Download Data</button>
+</nav>
+
+<div class="container">
+
+    <!-- ==================== OVERVIEW ==================== -->
+    <div class="page active" id="page-overview">
+        <h1>🌍 Air Quality Double Jeopardy Dashboard</h1>
+        <p class="page-subtitle">Identifying Communities Facing Chronic AND Acute Pollution Burden (2021-2024)</p>
+
+        <div class="callout callout-blue">
+            <strong>Project Summary:</strong> This dashboard analyzes EPA Air Quality Index data from 2021-2024
+            to identify U.S. counties experiencing <em>Double Jeopardy</em>—communities suffering from both
+            persistently poor daily air quality AND dangerous pollution spikes.
+        </div>
+
+        <div class="metrics-row" id="overview-metrics"></div>
+
+        <div class="divider"></div>
+
+        <div class="two-col">
+            <div class="info-card">
+                <h4 style="color: #dc2626; border-bottom-color: #fef2f2;">Double Jeopardy = High Chronic + High Acute</h4>
+                <p>A county qualifies as <strong>Double Jeopardy</strong> if it meets BOTH criteria:</p>
+                <ul>
+                    <li><strong>High Chronic Exposure:</strong> 4-year average Median AQI ≥ 90th percentile<br>
+                    <span style="color: #64748b; font-size: 0.9rem;">→ Persistent daily pollution burden</span></li>
+                    <li style="margin-top: 12px;"><strong>High Acute Exposure:</strong> 4-year average Max AQI ≥ 90th percentile<br>
+                    <span style="color: #64748b; font-size: 0.9rem;">→ Dangerous pollution spikes</span></li>
+                </ul>
+                <p style="margin-top: 12px;"><strong>Why it matters:</strong> These communities face a compounding health burden—
+                their residents never get relief from poor air quality AND face periodic dangerous episodes.</p>
+            </div>
+            <div class="chart-container" id="overview-pie" style="display:flex; align-items:center;"></div>
+        </div>
+
+        <div class="two-col" id="threshold-cards" style="margin: 24px 0;"></div>
+
+        <div class="divider"></div>
+
+        <h3>🗺️ Double Jeopardy Overview</h3>
+        <p style="color: #64748b; margin-bottom: 12px;">Interactive scatter plot — each dot is a U.S. county</p>
+        <div class="chart-container" id="overview-scatter"></div>
+
+        <div class="callout callout-blue">
+            <strong>💡 How to read this chart:</strong> Counties in the
+            <span style="color: #dc2626; font-weight: 600;">upper-right quadrant (red)</span> face Double Jeopardy—
+            they have both high daily pollution levels AND dangerous pollution spikes.
+        </div>
+    </div>
+
+    <!-- ==================== CHRONIC POLLUTION ==================== -->
+    <div class="page" id="page-chronic">
+        <h1>📊 Chronic Pollution Analysis</h1>
+        <p class="page-subtitle">Top Counties by Mean Median AQI (2021-2024)</p>
+
+        <div class="callout callout-blue">
+            <strong>What is Chronic Pollution?</strong> The Median AQI represents the <em>typical daily air quality</em>
+            a resident experiences. A high average Median AQI over 4 years indicates persistent, day-in-day-out
+            pollution exposure.
+        </div>
+
+        <div class="divider"></div>
+        <h3>Top 15 Counties by Chronic Pollution</h3>
+        <div class="chart-container" id="chronic-chart"></div>
+
+        <div class="info-card" id="chronic-insight"></div>
+
+        <div class="divider"></div>
+        <h3>📋 Data Table</h3>
+        <div class="table-wrapper" id="chronic-table"></div>
+    </div>
+
+    <!-- ==================== EXTREME SPIKES ==================== -->
+    <div class="page" id="page-spikes">
+        <h1>⚡ Extreme Pollution Spikes</h1>
+        <p class="page-subtitle">Top Counties by Mean Max AQI (2021-2024)</p>
+
+        <div class="callout callout-orange">
+            <strong>What are Extreme Spikes?</strong> The Max AQI represents the <em>worst single day</em> of air quality
+            each year. A high average Max AQI over 4 years indicates a county prone to dangerous pollution episodes—
+            from wildfires, industrial accidents, or severe inversions.
+        </div>
+
+        <div class="divider"></div>
+        <h3>Top 15 Counties by Acute Pollution</h3>
+        <div class="chart-container" id="spikes-chart"></div>
+
+        <div class="info-card" id="spikes-insight"></div>
+
+        <div class="divider"></div>
+        <h3>📋 Data Table</h3>
+        <div class="table-wrapper" id="spikes-table"></div>
+    </div>
+
+    <!-- ==================== DOUBLE JEOPARDY ==================== -->
+    <div class="page" id="page-dj">
+        <h1>🎯 Vulnerability Profile Analysis</h1>
+        <p class="page-subtitle">Counties by Vulnerability (Chronic) vs Hazard (Acute) Scores</p>
+
+        <div class="callout callout-red">
+            <strong>Understanding the Vulnerability Profile:</strong> This analysis maps counties by their
+            <em>Vulnerability Score</em> (chronic daily pollution burden) versus <em>Hazard Score</em> (acute pollution events).
+            Counties in the <strong>upper-right quadrant</strong> face double jeopardy.
+        </div>
+
+        <div class="metrics-row" id="dj-metrics"></div>
+
+        <div class="divider"></div>
+        <h3>Vulnerability Profile Dashboard</h3>
+        <div class="chart-row">
+            <div class="chart-container" id="dj-bar"></div>
+            <div class="chart-container" id="dj-scatter"></div>
+        </div>
+
+        <div class="info-card">
+            <h4 style="color: #dc2626; border-bottom-color: #fef2f2;">💡 How to Read This Dashboard</h4>
+            <p><strong>Vulnerability Score</strong> (X-axis): Normalized chronic pollution burden (0 = best, 1 = worst)</p>
+            <p><strong>Hazard Score</strong> (Y-axis): Normalized acute pollution events (0 = best, 1 = worst)</p>
+            <ul>
+                <li><strong>Diagonal line (y=x):</strong> Counties above have higher hazard than vulnerability</li>
+                <li><strong>Mean reference lines:</strong> Divide the chart into four quadrants</li>
+                <li><strong>Upper-right quadrant (Red):</strong> Double Jeopardy counties</li>
+            </ul>
+        </div>
+
+        <div class="divider"></div>
+        <h3>Double Jeopardy Counties</h3>
+        <div class="table-wrapper" id="dj-table"></div>
+    </div>
+
+    <!-- ==================== SEVERITY SCORE ==================== -->
+    <div class="page" id="page-severity">
+        <h1>📈 Severity Score Analysis</h1>
+        <p class="page-subtitle">Combined Pollution Burden Metric</p>
+
+        <div class="callout callout-purple">
+            <strong>What is the Severity Score?</strong> A single metric that combines both chronic and acute pollution
+            exposure into one comparable number. It normalizes both dimensions to a 0-1 scale and averages them.
+        </div>
+
+        <div class="two-col">
+            <div class="info-card">
+                <h4 style="color: #9333ea; border-bottom-color: #faf5ff;">Normalization Formula</h4>
+                <pre style="background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 0.85rem; border: 1px solid #e2e8f0;">Normalized = (Value - Min) / (Max - Min)</pre>
+                <p>Scales all values between 0 (best) and 1 (worst).</p>
+            </div>
+            <div class="info-card">
+                <h4 style="color: #9333ea; border-bottom-color: #faf5ff;">Severity Score Formula</h4>
+                <pre style="background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 0.85rem; border: 1px solid #e2e8f0;">Severity = (Norm_Chronic + Norm_Acute) / 2</pre>
+                <p>Equal weighting of both dimensions.</p>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3>Top 15 Counties by Severity Score</h3>
+        <div class="chart-container" id="severity-chart"></div>
+
+        <div class="info-card" id="severity-insight"></div>
+
+        <div class="divider"></div>
+        <h3>📋 Data Table</h3>
+        <div class="table-wrapper" id="severity-table"></div>
+    </div>
+
+    <!-- ==================== DOWNLOAD DATA ==================== -->
+    <div class="page" id="page-download">
+        <h1>📥 Download Data &amp; Methodology</h1>
+        <p class="page-subtitle">Export Processed Data and Learn About Our Approach</p>
+
+        <div class="divider"></div>
+        <h3>Data Downloads</h3>
+        <div class="two-col">
+            <div class="info-card">
+                <h4 style="color: #dc2626; border-bottom-color: #fef2f2;">🔴 Double Jeopardy Counties</h4>
+                <p>Counties exceeding the 90th percentile for BOTH Mean Median AQI and Mean Max AQI.</p>
+                <button onclick="downloadCSV('dj')" style="margin-top: 12px; background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 500;">📥 Download Double Jeopardy CSV</button>
+            </div>
+            <div class="info-card">
+                <h4 style="color: #9333ea; border-bottom-color: #faf5ff;">📈 Full County Dataset</h4>
+                <p>All counties with aggregated statistics, risk categories, and severity scores.</p>
+                <button onclick="downloadCSV('all')" style="margin-top: 12px; background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 500;">📥 Download Full Dataset CSV</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h2>📐 Methodology</h2>
+
+        <div class="info-card">
+            <h4>Data Processing Pipeline</h4>
+            <ul>
+                <li><strong>Data Source:</strong> EPA Air Quality Index Annual Summary files (2021-2024)</li>
+                <li><strong>Geographic Unit:</strong> U.S. Counties</li>
+                <li><strong>Aggregation:</strong> 4-year average of annual Median AQI and Max AQI per county</li>
+                <li><strong>Threshold Calculation:</strong> 90th percentile computed from the full dataset</li>
+            </ul>
+        </div>
+
+        <div class="two-col">
+            <div class="info-card">
+                <h4 style="color: #2563eb;">Key Metrics Defined</h4>
+                <ul>
+                    <li><strong>Mean Median AQI:</strong> Average of yearly Median AQI values. Represents typical daily air quality.</li>
+                    <li style="margin-top: 8px;"><strong>Mean Max AQI:</strong> Average of yearly Max AQI values. Represents peak pollution events.</li>
+                    <li style="margin-top: 8px;"><strong>Severity Score:</strong> (Norm Median + Norm Max) / 2. A single 0-1 metric for ranking.</li>
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4 style="color: #dc2626;">Risk Categories</h4>
+                <ul>
+                    <li><span class="badge badge-low">Low Risk</span> Below 90th %ile on both metrics</li>
+                    <li style="margin-top: 8px;"><span class="badge badge-chronic">High Chronic</span> Above 90th %ile for Median AQI only</li>
+                    <li style="margin-top: 8px;"><span class="badge badge-acute">High Acute</span> Above 90th %ile for Max AQI only</li>
+                    <li style="margin-top: 8px;"><span class="badge badge-dj">Double Jeopardy</span> Above 90th %ile for BOTH</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="callout callout-orange">
+            <strong>Important Limitations:</strong>
+            <ul style="margin-top: 8px;">
+                <li>Not all counties have continuous air quality monitoring.</li>
+                <li>Extreme Max AQI from wildfires can skew averages.</li>
+                <li>4-year averages smooth out year-to-year variation.</li>
+                <li>Analysis treats all counties equally (no population weighting).</li>
+                <li>AQI is a composite index — counties may face different primary pollutants.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <p><strong>Data Source:</strong> EPA Air Quality Index Annual Summary (2021-2024)</p>
+        <p style="color: #94a3b8; margin-top: 6px;"><strong>Built for:</strong> Datathon 2026 &nbsp;|&nbsp; <strong>Framework:</strong> Plotly.js</p>
+    </div>
+</div>
+
+<script>
+// ===== NAVIGATION =====
+function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + id).classList.add('active');
+    event.target.classList.add('active');
+    window.scrollTo(0, 0);
+}
+
+// ===== COLORS =====
+const riskColors = {
+    'Low Risk': '#48bb78', 'High Chronic': '#ecc94b',
+    'High Acute': '#ed8936', 'Double Jeopardy': '#c53030'
+};
+const scatterColors = {
+    'Low Risk': '#1a9850', 'High Vulnerability': '#d9ef8b',
+    'High Hazard': '#fdae61', 'Double Jeopardy': '#d73027'
+};
+const plotlyLayout = {
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'white',
+    font: { family: 'Inter, sans-serif', size: 12 },
+    margin: { l: 20, r: 20, t: 50, b: 40 }
+};
+
+// ===== BADGE HELPER =====
+function riskBadge(risk) {
+    const cls = { 'Double Jeopardy': 'badge-dj', 'High Chronic': 'badge-chronic', 'High Acute': 'badge-acute', 'Low Risk': 'badge-low' };
+    return `<span class="badge ${cls[risk] || 'badge-low'}">${risk}</span>`;
+}
+
+// ===== LOAD DATA & RENDER =====
+fetch('data.json')
+    .then(r => r.json())
+    .then(data => {
+        window._data = data;
+        renderOverview(data);
+        renderChronic(data);
+        renderSpikes(data);
+        renderDJ(data);
+        renderSeverity(data);
+    })
+    .catch(e => {
+        document.getElementById('page-overview').innerHTML = `<div class="loading">Error loading data: ${e.message}</div>`;
+    });
+
+// ===== OVERVIEW PAGE =====
+function renderOverview(data) {
+    // Metrics
+    document.getElementById('overview-metrics').innerHTML = `
+        <div class="metric-card"><div class="metric-label">Total Counties</div><div class="metric-value">${data.total_counties.toLocaleString()}</div></div>
+        <div class="metric-card"><div class="metric-label">Year Range</div><div class="metric-value">2021-2024</div></div>
+        <div class="metric-card"><div class="metric-label">Double Jeopardy</div><div class="metric-value" style="color:#dc2626">${data.dj_count}</div>
+            <div class="metric-sub">${(data.dj_count/data.total_counties*100).toFixed(1)}% of total</div></div>
+        <div class="metric-card"><div class="metric-label">Geographic Scope</div><div class="metric-value" style="font-size:1.3rem">All U.S.</div></div>
+    `;
+
+    // Threshold cards
+    document.getElementById('threshold-cards').innerHTML = `
+        <div class="info-card" style="text-align:center">
+            <h4 style="color:#2563eb; border:none; padding:0; margin:0;">Chronic Threshold</h4>
+            <div style="font-size:2.25rem; font-weight:700; color:#0f172a; margin:12px 0 8px">${data.median_thresh}</div>
+            <p style="color:#64748b; font-size:0.85rem">90th percentile Mean Median AQI</p>
+        </div>
+        <div class="info-card" style="text-align:center">
+            <h4 style="color:#ea580c; border:none; padding:0; margin:0;">Acute Threshold</h4>
+            <div style="font-size:2.25rem; font-weight:700; color:#0f172a; margin:12px 0 8px">${data.max_thresh}</div>
+            <p style="color:#64748b; font-size:0.85rem">90th percentile Mean Max AQI</p>
+        </div>
+    `;
+
+    // Pie chart
+    const rc = data.risk_counts;
+    const pieLabels = Object.keys(rc), pieValues = Object.values(rc);
+    Plotly.newPlot('overview-pie', [{
+        labels: pieLabels, values: pieValues, type: 'pie', hole: 0.5,
+        marker: { colors: pieLabels.map(l => riskColors[l] || '#999') },
+        textinfo: 'percent+label', textposition: 'outside'
+    }], { ...plotlyLayout, height: 300, showlegend: false, title: { text: 'Risk Distribution', font: { size: 14 } } }, { responsive: true });
+
+    // Scatter
+    const categories = ['Low Risk', 'High Chronic', 'High Acute', 'Double Jeopardy'];
+    const traces = categories.map(cat => {
+        const pts = data.counties.filter(c => c.risk === cat);
+        return {
+            x: pts.map(c => c.mean_median_aqi), y: pts.map(c => c.mean_max_aqi),
+            text: pts.map(c => `${c.County}, ${c.State}`),
+            mode: 'markers', type: 'scatter', name: cat,
+            marker: { color: riskColors[cat], size: 6, opacity: 0.7 },
+            hovertemplate: '<b>%{text}</b><br>Median AQI: %{x:.1f}<br>Max AQI: %{y:.1f}<extra>' + cat + '</extra>'
+        };
+    });
+    const scatterLayout = {
+        ...plotlyLayout, height: 500,
+        xaxis: { title: 'Mean Median AQI (Chronic)', gridcolor: '#e2e8f0' },
+        yaxis: { title: 'Mean Max AQI (Acute)', gridcolor: '#e2e8f0' },
+        legend: { orientation: 'h', y: 1.1, x: 0.5, xanchor: 'center' },
+        shapes: [
+            { type: 'line', x0: data.median_thresh, x1: data.median_thresh, y0: 0, y1: 1, yref: 'paper', line: { dash: 'dash', color: '#3182ce', width: 1.5 } },
+            { type: 'line', y0: data.max_thresh, y1: data.max_thresh, x0: 0, x1: 1, xref: 'paper', line: { dash: 'dash', color: '#dd6b20', width: 1.5 } }
+        ],
+        annotations: [
+            { x: data.median_thresh, y: 1, yref: 'paper', text: 'Chronic Threshold', showarrow: false, yanchor: 'bottom', font: { size: 10, color: '#3182ce' } },
+            { y: data.max_thresh, x: 1, xref: 'paper', text: 'Acute Threshold', showarrow: false, xanchor: 'left', font: { size: 10, color: '#dd6b20' } }
+        ]
+    };
+    Plotly.newPlot('overview-scatter', traces, scatterLayout, { responsive: true });
+}
+
+// ===== CHRONIC PAGE =====
+function renderChronic(data) {
+    const d = data.chronic_top15.slice().reverse();
+    Plotly.newPlot('chronic-chart', [{
+        y: d.map(c => c.County), x: d.map(c => c.mean_median_aqi),
+        type: 'bar', orientation: 'h',
+        marker: { color: d.map((_, i) => `hsl(${120 + i * 10}, 60%, ${35 + i * 2}%)`) },
+        text: d.map(c => c.State), textposition: 'none',
+        hovertemplate: '<b>%{y}</b> (%{text})<br>Mean Median AQI: %{x:.1f}<extra></extra>'
+    }], { ...plotlyLayout, height: 500, xaxis: { title: 'Average Median AQI (Daily Exposure)', gridcolor: '#e2e8f0' }, yaxis: { title: '' } }, { responsive: true });
+
+    const worst = data.chronic_top15[0];
+    document.getElementById('chronic-insight').innerHTML = `
+        <h4 style="color:#2563eb; border-bottom-color:#eff6ff;">💡 What This Means</h4>
+        <p><strong>${worst.County}, ${worst.State}</strong> has the highest chronic pollution burden with an average Median AQI of <strong>${worst.mean_median_aqi}</strong> over 2021-2024.</p>
+        <p>Counties with high Median AQI experience poor air quality as their <em>norm</em>—leading to cumulative health impacts including increased rates of asthma and cardiovascular disease.</p>
+    `;
+
+    let rows = data.chronic_top15.map((c, i) => `<tr><td>${i+1}</td><td>${c.County}</td><td>${c.State}</td><td>${c.mean_median_aqi}</td><td>${c.mean_max_aqi}</td></tr>`).join('');
+    document.getElementById('chronic-table').innerHTML = `<table class="data-table"><thead><tr><th>#</th><th>County</th><th>State</th><th>Mean Median AQI</th><th>Mean Max AQI</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ===== SPIKES PAGE =====
+function renderSpikes(data) {
+    const d = data.acute_top15.slice().reverse();
+    const trace = {
+        y: d.map(c => c.County), x: d.map(c => c.mean_max_aqi),
+        type: 'bar', orientation: 'h',
+        marker: { color: d.map((_, i) => `hsl(${30 - i * 2}, ${70 + i}%, ${45 + i}%)`) },
+        text: d.map(c => c.State), textposition: 'none',
+        hovertemplate: '<b>%{y}</b> (%{text})<br>Mean Max AQI: %{x:.1f}<extra></extra>'
+    };
+    const layout = {
+        ...plotlyLayout, height: 500,
+        xaxis: { title: 'Average Max AQI (Extreme Events)', gridcolor: '#e2e8f0' }, yaxis: { title: '' },
+        shapes: [
+            { type: 'line', x0: 150, x1: 150, y0: -0.5, y1: 14.5, line: { dash: 'dash', color: '#c53030', width: 1.5 } },
+            { type: 'line', x0: 300, x1: 300, y0: -0.5, y1: 14.5, line: { dash: 'dash', color: '#742a2a', width: 1.5 } }
+        ],
+        annotations: [
+            { x: 150, y: 14.5, text: 'Unhealthy (150)', showarrow: false, font: { size: 9, color: '#c53030' } },
+            { x: 300, y: 14.5, text: 'Hazardous (300)', showarrow: false, font: { size: 9, color: '#742a2a' } }
+        ]
+    };
+    Plotly.newPlot('spikes-chart', [trace], layout, { responsive: true });
+
+    const worst = data.acute_top15[0];
+    document.getElementById('spikes-insight').innerHTML = `
+        <h4 style="color:#ea580c; border-bottom-color:#fff7ed;">💡 What This Means</h4>
+        <p><strong>${worst.County}, ${worst.State}</strong> has the highest acute pollution burden with an average Max AQI of <strong>${worst.mean_max_aqi}</strong>.</p>
+        <p>These spikes often trigger health emergencies, especially for children, elderly, and those with respiratory conditions. Values above 300 are "Hazardous."</p>
+    `;
+
+    let rows = data.acute_top15.map((c, i) => `<tr><td>${i+1}</td><td>${c.County}</td><td>${c.State}</td><td>${c.mean_median_aqi}</td><td>${c.mean_max_aqi}</td></tr>`).join('');
+    document.getElementById('spikes-table').innerHTML = `<table class="data-table"><thead><tr><th>#</th><th>County</th><th>State</th><th>Mean Median AQI</th><th>Mean Max AQI</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ===== DOUBLE JEOPARDY PAGE =====
+function renderDJ(data) {
+    const counties = data.counties;
+    const meanVuln = counties.reduce((s, c) => s + c.vuln_score, 0) / counties.length;
+    const meanHazard = counties.reduce((s, c) => s + c.hazard_score, 0) / counties.length;
+
+    // Assign DJ-specific risk categories based on mean
+    const cats = counties.map(c => {
+        if (c.vuln_score >= meanVuln && c.hazard_score >= meanHazard) return 'Double Jeopardy';
+        if (c.vuln_score >= meanVuln) return 'High Vulnerability';
+        if (c.hazard_score >= meanHazard) return 'High Hazard';
+        return 'Low Risk';
+    });
+
+    const djCount = cats.filter(c => c === 'Double Jeopardy').length;
+    const hvCount = cats.filter(c => c === 'High Vulnerability').length;
+    const hhCount = cats.filter(c => c === 'High Hazard').length;
+    const lrCount = cats.filter(c => c === 'Low Risk').length;
+
+    document.getElementById('dj-metrics').innerHTML = `
+        <div class="metric-card"><div class="metric-label">🔴 Double Jeopardy</div><div class="metric-value" style="color:#dc2626">${djCount}</div></div>
+        <div class="metric-card"><div class="metric-label">🟡 High Vulnerability</div><div class="metric-value" style="color:#ca8a04">${hvCount}</div></div>
+        <div class="metric-card"><div class="metric-label">🟠 High Hazard</div><div class="metric-value" style="color:#ea580c">${hhCount}</div></div>
+        <div class="metric-card"><div class="metric-label">🟢 Low Risk</div><div class="metric-value" style="color:#16a34a">${lrCount}</div></div>
+    `;
+
+    // Bar chart - top 10 by severity
+    const top10 = data.severity_top15.slice(0, 10).reverse();
+    Plotly.newPlot('dj-bar', [{
+        y: top10.map(c => c.County), x: top10.map(c => c.severity_score),
+        type: 'bar', orientation: 'h',
+        marker: { color: top10.map(c => riskColors[c.risk] || '#999') },
+        hovertemplate: '<b>%{y}</b><br>Severity: %{x:.3f}<extra></extra>'
+    }], {
+        ...plotlyLayout, height: 450,
+        title: { text: 'Top 10 by Severity Score', font: { size: 13 } },
+        xaxis: { title: 'Severity Score', range: [0, 1], gridcolor: '#e2e8f0' }, yaxis: { title: '' }
+    }, { responsive: true });
+
+    // Vulnerability Profile Scatter
+    const catOrder = ['Low Risk', 'High Vulnerability', 'High Hazard', 'Double Jeopardy'];
+    const scatterTraces = catOrder.map(cat => {
+        const idx = [];
+        cats.forEach((c, i) => { if (c === cat) idx.push(i); });
+        return {
+            x: idx.map(i => counties[i].vuln_score), y: idx.map(i => counties[i].hazard_score),
+            text: idx.map(i => `${counties[i].County}, ${counties[i].State}`),
+            mode: 'markers', type: 'scatter', name: cat,
+            marker: { size: 8, color: scatterColors[cat] || '#999', line: { width: 1, color: 'white' }, opacity: 0.8 },
+            hovertemplate: '<b>%{text}</b><br>Vuln: %{x:.3f}<br>Hazard: %{y:.3f}<extra>' + cat + '</extra>'
+        };
+    });
+
+    // Diagonal line
+    scatterTraces.push({
+        x: [0, 1], y: [0, 1], mode: 'lines', type: 'scatter', name: 'y = x',
+        line: { dash: 'dash', color: 'gray', width: 1.5 }, opacity: 0.5, showlegend: false
+    });
+
+    Plotly.newPlot('dj-scatter', scatterTraces, {
+        ...plotlyLayout, height: 450,
+        title: { text: 'Vulnerability Profile', font: { size: 13, color: '#1e293b' }, x: 0.5 },
+        xaxis: { title: 'Vulnerability Score', range: [-0.05, 1.1], gridcolor: '#e2e8f0' },
+        yaxis: { title: 'Hazard Score', range: [-0.05, 1.1], gridcolor: '#e2e8f0' },
+        legend: { orientation: 'v', x: 1.02, y: 0.99, bgcolor: 'rgba(255,255,255,0.9)', bordercolor: '#e2e8f0', borderwidth: 1 },
+        margin: { l: 60, r: 120, t: 50, b: 60 },
+        shapes: [
+            { type: 'line', x0: meanVuln, x1: meanVuln, y0: 0, y1: 1, line: { dash: 'dot', color: 'gray', width: 1 } },
+            { type: 'line', y0: meanHazard, y1: meanHazard, x0: 0, x1: 1, line: { dash: 'dot', color: 'gray', width: 1 } }
+        ],
+        annotations: [
+            { x: meanVuln, y: 1.05, text: `Mean Vuln (${meanVuln.toFixed(2)})`, showarrow: false, font: { size: 9, color: 'gray' } },
+            { x: 1.05, y: meanHazard, text: `Mean Hazard (${meanHazard.toFixed(2)})`, showarrow: false, font: { size: 9, color: 'gray' } },
+            { x: 0.8, y: 0.9, text: 'High Vuln<br>High Hazard', showarrow: false, font: { size: 9, color: '#888' } },
+            { x: 0.15, y: 0.9, text: 'Low Vuln<br>High Hazard', showarrow: false, font: { size: 9, color: '#888' } },
+            { x: 0.15, y: 0.1, text: 'Low Vuln<br>Low Hazard', showarrow: false, font: { size: 9, color: '#888' } },
+            { x: 0.8, y: 0.1, text: 'High Vuln<br>Low Hazard', showarrow: false, font: { size: 9, color: '#888' } }
+        ]
+    }, { responsive: true });
+
+    // DJ Table
+    let rows = data.dj_counties.map((c, i) => `<tr><td>${i+1}</td><td>${c.County}</td><td>${c.State}</td><td>${c.vuln_score}</td><td>${c.hazard_score}</td><td>${c.severity_score}</td><td>${c.mean_median_aqi}</td><td>${c.mean_max_aqi}</td></tr>`).join('');
+    document.getElementById('dj-table').innerHTML = `<table class="data-table"><thead><tr><th>#</th><th>County</th><th>State</th><th>Vuln Score</th><th>Hazard Score</th><th>Severity</th><th>Mean Median AQI</th><th>Mean Max AQI</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ===== SEVERITY PAGE =====
+function renderSeverity(data) {
+    const d = data.severity_top15.slice().reverse();
+    Plotly.newPlot('severity-chart', [{
+        y: d.map(c => c.County), x: d.map(c => c.severity_score),
+        type: 'bar', orientation: 'h',
+        marker: { color: d.map((_, i) => `hsl(${280 - i * 8}, 60%, ${40 + i * 2}%)`) },
+        hovertemplate: '<b>%{y}</b><br>Severity: %{x:.3f}<br>Vuln: ' + d.map(c => c.vuln_score.toFixed(3)) + '<extra></extra>'
+    }], {
+        ...plotlyLayout, height: 500,
+        xaxis: { title: 'Severity Score (0 = Best, 1 = Worst)', range: [0, 1], gridcolor: '#e2e8f0' }, yaxis: { title: '' }
+    }, { responsive: true });
+
+    const worst = data.severity_top15[0];
+    document.getElementById('severity-insight').innerHTML = `
+        <h4 style="color:#9333ea; border-bottom-color:#faf5ff;">💡 What This Means</h4>
+        <p><strong>${worst.County}</strong> has the highest Severity Score of <strong>${worst.severity_score}</strong>.</p>
+        <p><strong>Component breakdown:</strong></p>
+        <ul>
+            <li>Vulnerability (Chronic): ${worst.vuln_score}</li>
+            <li>Hazard (Acute): ${worst.hazard_score}</li>
+        </ul>
+        <p>A score close to 1.0 indicates a county near the worst on both dimensions.</p>
+    `;
+
+    let rows = data.severity_top15.map((c, i) => `<tr><td>${i+1}</td><td>${c.County}</td><td>${c.vuln_score}</td><td>${c.hazard_score}</td><td>${c.severity_score}</td><td>${riskBadge(c.risk)}</td></tr>`).join('');
+    document.getElementById('severity-table').innerHTML = `<table class="data-table"><thead><tr><th>#</th><th>County</th><th>Vuln Score</th><th>Hazard Score</th><th>Severity</th><th>Risk</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ===== CSV DOWNLOAD =====
+function downloadCSV(type) {
+    const d = window._data;
+    let rows, headers, filename;
+    if (type === 'dj') {
+        headers = ['County', 'State', 'Mean_Median_AQI', 'Mean_Max_AQI', 'Vulnerability_Score', 'Hazard_Score', 'Severity_Score'];
+        rows = d.dj_counties.map(c => [c.County, c.State, c.mean_median_aqi, c.mean_max_aqi, c.vuln_score, c.hazard_score, c.severity_score]);
+        filename = 'double_jeopardy_counties.csv';
+    } else {
+        headers = ['County', 'State', 'Mean_Median_AQI', 'Mean_Max_AQI', 'Risk_Category', 'Vulnerability_Score', 'Hazard_Score', 'Severity_Score'];
+        rows = d.counties.map(c => [c.County, c.State, c.mean_median_aqi, c.mean_max_aqi, c.risk, c.vuln_score, c.hazard_score, c.severity_score]);
+        filename = 'all_county_statistics.csv';
+    }
+    let csv = headers.join(',') + '\n' + rows.map(r => r.map(v => typeof v === 'string' && v.includes(',') ? `"${v}"` : v).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+}
+</script>
+</body>
+</html>
