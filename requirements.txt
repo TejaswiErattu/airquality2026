@@ -1,6 +1,7 @@
-tabpy
-tabpy-client
-tableauhyperapi
-tableauserverclient
+flask
 pandas
-lxml
+numpy
+matplotlib
+seaborn
+plotly
+scikit-learn
